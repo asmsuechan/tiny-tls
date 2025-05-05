@@ -1,4 +1,4 @@
-# tiny-tls
+# 🌱 tiny-tls
 This project implements a minimum TLS1.3 server for educational use.
 
 * Written in only standard libraries, no 3rd party libs
