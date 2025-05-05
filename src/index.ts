@@ -67,6 +67,11 @@ const server = net.createServer((socket) => {
         console.error("未対応のTLSレコードタイプです。");
       }
     }
+
+    sendHttpResponse(
+      socket,
+      decodedTlsRecords?.map((r) => r?.toString() ?? "")
+    );
     console.log("decodedTlsRecords:", decodedTlsRecords);
   });
 
@@ -90,3 +95,27 @@ server.listen(443, () => {
 server.on("error", (err) => {
   console.error(`サーバーエラー: ${err}`);
 });
+
+const sendHttpResponse = (socket: net.Socket, decodedTlsRecords: string[]) => {
+  if (applicationProcessor == null) {
+    console.error("アプリケーションプロセッサが初期化されていません。");
+    return;
+  }
+  const decodedData = decodedTlsRecords.map((r) => r?.toString()).join("");
+  if (decodedData?.toString().startsWith("GET / HTTP/1.1")) {
+    const bufferApplicationData = generateHttpResponse();
+    const applicationTlsRecord = new TlsRecord(
+      ContentType.applicationData,
+      0x0303,
+      bufferApplicationData.length,
+      bufferApplicationData
+    );
+    applicationProcessor.sendData(socket, applicationTlsRecord);
+  }
+};
+
+const generateHttpResponse = () => {
+  const body = "<html><body><h1>Hello, TLS!</h1></body></html>";
+  const response = `HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: ${body.length}\r\n\r\n${body}`;
+  return Buffer.from(response, "utf8");
+};

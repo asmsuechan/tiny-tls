@@ -1,12 +1,16 @@
 import { TlsRecord } from "./models/tls_record";
 import { TlsCryptoService } from "./services/tls_crypto_service";
 
+import net from "net";
+
 export class TlsApplicationDataProcessor {
   private applicationDataRcvSequenceNumber: number;
   private clientApplicationTrafficSecret: Buffer;
   private clientApplicationWriteKey: Buffer;
   private clientApplicationWriteIv: Buffer;
   private masterSecret: Buffer;
+
+  private applicationDataSequenceNumber: number = 0;
 
   public handshakeFinished: boolean;
 
@@ -63,6 +67,39 @@ export class TlsApplicationDataProcessor {
     }
 
     return decodedData;
+  }
+
+  sendData(socket: net.Socket, applicationTlsRecord: TlsRecord) {
+    const tlsCryptoService = new TlsCryptoService();
+    /* サーバーサイドのキーを求める */
+    const serverApplicationTrafficSecret = tlsCryptoService.deriveSecret(
+      this.masterSecret,
+      "s ap traffic",
+      this.handshakeHash
+    );
+
+    const serverApplicationWriteKey = tlsCryptoService.hkdfExpandLabel(
+      Buffer.from(serverApplicationTrafficSecret),
+      "key",
+      Buffer.from([]),
+      32
+    );
+    const serverApplicationWriteIv = tlsCryptoService.hkdfExpandLabel(
+      Buffer.from(serverApplicationTrafficSecret),
+      "iv",
+      Buffer.from([]),
+      12
+    );
+
+    socket.write(
+      applicationTlsRecord.encrypt(
+        this.applicationDataSequenceNumber,
+        Buffer.from(serverApplicationWriteKey),
+        Buffer.from(serverApplicationWriteIv)
+      ),
+      "hex"
+    );
+    this.applicationDataSequenceNumber += 1;
   }
 
   private decodeApplicationData(tlsRecord: TlsRecord) {
