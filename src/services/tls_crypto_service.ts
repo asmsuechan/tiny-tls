@@ -69,6 +69,29 @@ export class TlsCryptoService {
 
     return encryptedData;
   }
+
+  // plaintext of encrypted_record =
+  //   AEAD-Decrypt(peer_write_key, nonce,
+  //     additional_data, AEADEncrypted)
+  aeadDecrypt(
+    ciphertext: Buffer,
+    key: Buffer,
+    nonce: Buffer,
+    aad: Buffer,
+    authTag: Buffer // GCM の認証タグ
+  ) {
+    try {
+      const decipher = crypto.createDecipheriv("aes-256-gcm", key, nonce);
+      decipher.setAAD(aad);
+      decipher.setAuthTag(authTag);
+
+      const plaintext = decipher.update(ciphertext);
+      return Buffer.concat([plaintext, decipher.final()]);
+    } catch (error) {
+      console.error("AEAD decryption failed:", error);
+      throw new Error("AEAD decryption failed");
+    }
+  }
 }
 
 class HkdfLabel {

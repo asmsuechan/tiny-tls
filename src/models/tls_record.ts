@@ -130,6 +130,41 @@ export class TlsRecord {
 
     return Buffer.concat([headerBuffer, encryptedData]);
   }
+
+  decrypt(
+    readSequenceNumber: bigint,
+    clientWriteKey: Buffer,
+    clientWriteIv: Buffer
+  ) {
+    // NOTE: Handshakeは復号しない
+    if (!Buffer.isBuffer(this.fragment)) {
+      throw new Error("Fragment must be a Buffer for decryption");
+    }
+
+    const encryptedData = this.fragment;
+    const sequenceNumberBuffer = Buffer.alloc(8);
+    sequenceNumberBuffer.writeBigUInt64BE(readSequenceNumber, 0);
+    const nonce = this.generateNonce(sequenceNumberBuffer, clientWriteIv);
+    const aad = this.generateAad(encryptedData, false);
+
+    const tagLength = 16; // GCMは16バイトの認証タグを持つ
+
+    const ciphertext = encryptedData.subarray(
+      0,
+      encryptedData.length - tagLength
+    );
+    const authTag = encryptedData.subarray(encryptedData.length - tagLength);
+    const service = new TlsCryptoService();
+
+    const decryptedData = service.aeadDecrypt(
+      ciphertext,
+      clientWriteKey,
+      nonce,
+      aad,
+      authTag
+    );
+    return decryptedData;
+  }
 }
 
 export class TlsInnerPlaintext {
